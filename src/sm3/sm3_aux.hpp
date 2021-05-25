@@ -125,6 +125,7 @@ namespace libsnark
                       const pb_linear_combination_array<FieldT> &X,
                       const pb_linear_combination_array<FieldT> &Y,
                       const pb_linear_combination_array<FieldT> &Z,
+                      const bool assume_Z_is_zero,
                       const size_t rot1,
                       const size_t rot2,
                       const size_t rot3,

@@ -39,7 +39,7 @@ namespace libsnark
         W_bits.resize(68);
         W_extended_bits.resize(64);
 
-        pack_W.resize(16);
+        pack_W.resize(68);
         for (size_t i = 0; i < 16; ++i)
         {
             W_bits[i] = pb_variable_array<FieldT>(M.rbegin() + (15 - i) * 32, M.rbegin() + (16 - i) * 32);
@@ -47,33 +47,39 @@ namespace libsnark
         }
 
         /* NB: some of those will be un-allocated */
-        sigma0.resize(64);
-        sigma1.resize(64);
-        compute_sigma0.resize(64);
-        compute_sigma1.resize(64);
+        p1_input.resize(68);
+        p1.resize(68);
+        compute_p1_input(68);
+        compute_p1.resize(68);
+        compute_W.resize(68);
+        compute_W_extended.resize(64);
 
-        for (size_t i = 16; i < 64; ++i)
+        for (size_t i = 16; i < 68; ++i)
         {
-            /* allocate result variables for sigma0/sigma1 invocations */
-            sigma0[i].allocate(pb, FMT(this->annotation_prefix, " sigma0_%zu", i));
-            sigma1[i].allocate(pb, FMT(this->annotation_prefix, " sigma1_%zu", i));
+            /* allocate the bit representation of intermediate variables */
+            p1_input[i].allocate(pb, 32, FMT(this->annotation_prefix, " p1_input_%zu", i));
+            p1[i].allocate(pb, 32, FMT(this->annotation_prefix, " p1_%zu", i));
 
-            /* compute sigma0/sigma1 */
-            compute_sigma0[i].reset(new small_sigma_gadget<FieldT>(pb, W_bits[i - 15], sigma0[i], 7, 18, 3, FMT(this->annotation_prefix, " compute_sigma0_%zu", i)));
-            compute_sigma1[i].reset(new small_sigma_gadget<FieldT>(pb, W_bits[i - 2], sigma1[i], 17, 19, 10, FMT(this->annotation_prefix, " compute_sigma1_%zu", i)));
-
-            /* unreduced_W = sigma0(W_{i-15}) + sigma1(W_{i-2}) + W_{i-7} + W_{i-16} before modulo 2^32 */
-            unreduced_W[i].allocate(pb, FMT(this->annotation_prefix, " unreduced_W_%zu", i));
+            /* compute intermediate variables */
+            compute_p1_input[i].reset(new parity_gadget<FieldT>(pb, W_bits[i - 16], W_bits[i - 9], W_bits[i - 3], false, 0, 0, 15, p1_input[i], FMT(this->annotation_prefix, " compute_p1_input_%zu", i)));
+            compute_p1[i].reset(new permutation_gadget<FieldT>(pb, p1_input[i], p1[i], 0, 15, 23, FMT(this->annotation_prefix, " compute_p1_%zu", i)));
 
             /* allocate the bit representation of packed_W[i] */
             W_bits[i].allocate(pb, 32, FMT(this->annotation_prefix, " W_bits_%zu", i));
 
-            /* and finally reduce this into packed and bit representations */
-            mod_reduce_W[i].reset(new lastbits_gadget<FieldT>(pb, unreduced_W[i], 32 + 2, packed_W[i], W_bits[i], FMT(this->annotation_prefix, " mod_reduce_W_%zu", i)));
+            /* and finally pack bit representations */
+            compute_W[i].reset(new parity_gadget<FieldT>(pb, p1[i], W_bits[i - 13], W_bits[i - 6], false, 0, 7, 0, W_bits[i], FMT(this->annotation_prefix, " compute_W_bits_%zu", i)));
+            pack_W[i].reset(new packing_gadget<FieldT>(pb, W_bits[i], packed_W[i], FMT(this->annotation_prefix, " pack_W_%zu", i)));
         }
 
         for (size_t i = 0; i < 64; ++i)
         {
+            /* allocate the bit representation of packed_W_extended[i] */
+            W_extended_bits[i].allocate(pb, 32, FMT(this->annotation_prefix, " W_extended_bits_%zu", i));
+
+            /* compute W_extended_bits and pack */
+            compute_W_extended[i].reset(new parity_gadget<FieldT>(pb, W_bits[i], W_bits[i + 4], ONE, true, 0, 0, 0, W_extended_bits[i], FMT(this->annotation_prefix, " compute_W_entended_bits_%zu", i)));
+            packed_W_extended[i].reset(new packing_gadget<FieldT>(pb, W_extended_bits[i], packed_W_extended[i], FMT(this->annotation_prefix, " pack_W_extended_%zu", i)));
         }
     }
 
@@ -85,17 +91,18 @@ namespace libsnark
             pack_W[i]->generate_r1cs_constraints(false); // do not enforce bitness here; caller be aware. //可以减少constraint数
         }
 
-        for (size_t i = 16; i < 64; ++i)
+        for (size_t i = 16; i < 68; ++i)
         {
-            compute_sigma0[i]->generate_r1cs_constraints();
-            compute_sigma1[i]->generate_r1cs_constraints();
+            compute_p1_input[i]->generate_r1cs_constraints();
+            compute_p1[i]->generate_r1cs_constraints();
+            compute_W[i]->generate_r1cs_comstraints();
+            pack_W[i]->generate_r1cs_constraints();
+        }
 
-            this->pb.add_r1cs_constraint(r1cs_constraint<FieldT>(1,
-                                                                 sigma0[i] + sigma1[i] + packed_W[i - 16] + packed_W[i - 7],
-                                                                 unreduced_W[i]),
-                                         FMT(this->annotation_prefix, " unreduced_W_%zu", i));
-
-            mod_reduce_W[i]->generate_r1cs_constraints();
+        for (size_t i = 0; i < 64; i++)
+        {
+            compute_W_extended[i]->generate_r1cs_constraints();
+            pack_W_extended[i]->generate_r1cs_constraints();
         }
     }
 
@@ -107,12 +114,18 @@ namespace libsnark
             pack_W[i]->generate_r1cs_witness_from_bits();
         }
 
-        for (size_t i = 16; i < 64; ++i)
+        for (size_t i = 16; i < 68; ++i)
         {
-            compute_sigma0[i]->generate_r1cs_witness();
-            compute_sigma1[i]->generate_r1cs_witness();
-            this->pb.val(unreduced_W[i]) = this->pb.val(sigma0[i]) + this->pb.val(sigma1[i]) + this->pb.val(packed_W[i - 16]) + this->pb.val(packed_W[i - 7]);
-            mod_reduce_W[i]->generate_r1cs_witness();
+            compute_p1_input[i]->generate_r1cs_witness();
+            compute_p1[i]->generate_r1cs_witness();
+            compute_W[i]->generate_r1cs_witness();
+            pack_W[i]->generate_r1cs_witness_from_bits();
+        }
+
+        for (size_t i = 0; i < 64; i++)
+        {
+            compute_W_extended[i]->generate_r1cs_witness();
+            pack_W_extended[i]->generate_r1cs_witness();
         }
     }
 

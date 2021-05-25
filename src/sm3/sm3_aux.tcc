@@ -185,6 +185,7 @@ namespace libsnark
                                          const pb_linear_combination_array<FieldT> &X,
                                          const pb_linear_combination_array<FieldT> &Y,
                                          const pb_linear_combination_array<FieldT> &Z,
+                                         const bool assume_Z_is_zero,
                                          const size_t rot1,
                                          const size_t rot2,
                                          const size_t rot3,
@@ -265,7 +266,7 @@ namespace libsnark
     pb_variable_array<FieldT> rotate_left(const pb_variable_array<FieldT> &pre, size_t rot, protoboard<FieldT> &pb, const std::string &annotation = "")
     {
         pb_variable_array<FieldT> after;
-        after.allocate(pb, 32, annotation);
+        //        after.allocate(pb, 32, annotation);
         for (size_t i = 0; i < 32; i++)
         {
             after[i] = SM3_GADGET_ROTL(pre, i, rot);

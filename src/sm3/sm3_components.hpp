@@ -17,15 +17,25 @@ namespace libsnark
     class sm3_message_schedule_gadget : public gadget<FieldT>
     {
     public:
+        // W_0~67
         std::vector<pb_variable_array<FieldT>> W_bits;
+        // W'_0~63
         std::vector<pb_variable_array<FieldT>> W_extended_bits;
+        // Wj−16 ⊕ Wj−9 ⊕ (Wj−3 ≪ 15)
+        std::vector<pb_variable_array<FieldT>> p1_input;
+        // P_1(p1_input)
+        std::vector<pb_variable_array<FieldT>> p1;
+
+        // compute W_16~67
+        std::vector<std::shared_ptr<permutation_gadget<FieldT>>> compute_W;
+        // compute W'_0~63
+        std::vector<std::shared_ptr<permutation_gadget<FieldT>>> compute_W_extended;
+        std::vector<std::shared_ptr<parity_gadget<FieldT>>> compute_p1_input;
+        std::vector<std::shared_ptr<permutation_gadget<FieldT>>> compute_p1;
+
+        // for addition in round functions.
         std::vector<std::shared_ptr<packing_gadget<FieldT>>> pack_W;
         std::vector<std::shared_ptr<packing_gadget<FieldT>>> pack_W_extended;
-
-        std::vector<pb_variable<FieldT>> sigma0;
-        std::vector<pb_variable<FieldT>> sigma1;
-        std::vector<std::shared_ptr<small_sigma_gadget<FieldT>>> compute_sigma0;
-        std::vector<std::shared_ptr<small_sigma_gadget<FieldT>>> compute_sigma1;
 
     public:
         pb_variable_array<FieldT> M;
