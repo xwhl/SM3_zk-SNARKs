@@ -61,6 +61,54 @@ namespace libsnark
     //GG consists of parity and choice gadget;
     //choice and majority gadgets output packed result, parity and permutation gadget outputs bits result witch will be packed when needed(in round function or P0).
 
+    template <typename FieldT>
+    class ff_gadget : public gadget<FieldT>
+    {
+    private:
+        pb_variable_array<FieldT> result_bits;
+
+    public:
+        pb_variable<FieldT> result;
+        size_t i;
+        std::shared_ptr<parity_gadget<FieldT>> parity;
+        std::shared_ptr<majority_gadget<FieldT>> majority;
+        std::shared_ptr<packing_gadget<FieldT>> pack_parity_result;
+
+        ff_gadget(protoboard<FieldT> &pb,
+                  const pb_linear_combination_array<FieldT> &X,
+                  const pb_linear_combination_array<FieldT> &Y,
+                  const pb_linear_combination_array<FieldT> &Z,
+                  const size_t i,
+                  const pb_variable<FieldT> &result, const std::string &annotation_prefix);
+
+        void generate_r1cs_constraints();
+        void generate_r1cs_witness();
+    };
+
+    template <typename FieldT>
+    class gg_gadget : public gadget<FieldT>
+    {
+    private:
+        pb_variable_array<FieldT> result_bits;
+
+    public:
+        pb_variable<FieldT> result;
+        size_t i;
+        std::shared_ptr<parity_gadget<FieldT>> parity;
+        std::shared_ptr<choice_gadget<FieldT>> choice;
+        std::shared_ptr<packing_gadget<FieldT>> pack_parity_result;
+
+        gg_gadget(protoboard<FieldT> &pb,
+                  const pb_linear_combination_array<FieldT> &X,
+                  const pb_linear_combination_array<FieldT> &Y,
+                  const pb_linear_combination_array<FieldT> &Z,
+                  const size_t i,
+                  const pb_variable<FieldT> &result, const std::string &annotation_prefix);
+
+        void generate_r1cs_constraints();
+        void generate_r1cs_witness();
+    };
+
     // ( X ∧ Y ) ∨ ( ¬ X ∧ Z) is equivalent to  ( X ∧ Y ) ⊕ ( ¬ X ∧ Z)
     template <typename FieldT>
     class choice_gadget : public gadget<FieldT>
@@ -79,7 +127,8 @@ namespace libsnark
                       const pb_linear_combination_array<FieldT> &X,
                       const pb_linear_combination_array<FieldT> &Y,
                       const pb_linear_combination_array<FieldT> &Z,
-                      const pb_variable<FieldT> &result, const std::string &annotation_prefix);
+                      const pb_variable<FieldT> &result,
+                      const std::string &annotation_prefix);
 
         void generate_r1cs_constraints();
         void generate_r1cs_witness();

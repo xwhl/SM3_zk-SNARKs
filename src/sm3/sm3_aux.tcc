@@ -60,8 +60,6 @@ namespace libsnark
         }
     }
 
-#define SM3_GADGET_ROTL(A, i, k) A[((i) - (k)) % 32]
-
     template <typename FieldT>
     void XOR3_gadget<FieldT>::generate_r1cs_constraints()
     {
@@ -91,6 +89,106 @@ namespace libsnark
         {
             this->pb.val(tmp) = this->pb.lc_val(A) + this->pb.lc_val(B) - FieldT(2) * this->pb.lc_val(A) * this->pb.lc_val(B);
             this->pb.lc_val(out) = this->pb.val(tmp) + this->pb.lc_val(C) - FieldT(2) * this->pb.val(tmp) * this->pb.lc_val(C);
+        }
+    }
+
+    template <typename FieldT>
+    ff_gadget<FieldT>::ff_gadget(protoboard<FieldT> &pb,
+                                 const pb_linear_combination_array<FieldT> &X,
+                                 const pb_linear_combination_array<FieldT> &Y,
+                                 const pb_linear_combination_array<FieldT> &Z,
+                                 const size_t i,
+                                 const pb_variable<FieldT> &result, const std::string &annotation_prefix) : gadget<FieldT>(pb, annotation_prefix),
+                                                                                                            result(result),
+                                                                                                            i(i)
+    {
+        result_bits.allocate(pb, 32, FMT(this->annotation_prefix, " result_bits"));
+        if (i < 16)
+        {
+            parity.reset(new parity_gadget<FieldT>(pb, X, Y, Z, false, 0, 0, 0, result_bits, " ff_parity"));
+            pack_parity_result.reset(new packing_gadget<FieldT>(pb, result_bits, result, " ff_parity_packing"));
+        }
+        else
+        {
+            majority.reset(new majority_gadget<FieldT>(pb, X, Y, Z, result, "ff_majority"));
+        }
+    }
+
+    template <typename FieldT>
+    void ff_gadget<FieldT>::generate_r1cs_constraints()
+    {
+        if (i < 16)
+        {
+            parity->generate_r1cs_constraints();
+            pack_parity_result->generate_r1cs_constraints();
+        }
+        else
+        {
+            majority->generate_r1cs_constraints();
+        }
+    }
+
+    template <typename FieldT>
+    void ff_gadget<FieldT>::generate_r1cs_witness()
+    {
+        if (i < 16)
+        {
+            parity->generate_r1cs_witness();
+            pack_parity_result->generate_r1cs_witness();
+        }
+        else
+        {
+            majority->generate_r1cs_witness();
+        }
+    }
+
+    template <typename FieldT>
+    gg_gadget<FieldT>::gg_gadget(protoboard<FieldT> &pb,
+                                 const pb_linear_combination_array<FieldT> &X,
+                                 const pb_linear_combination_array<FieldT> &Y,
+                                 const pb_linear_combination_array<FieldT> &Z,
+                                 const size_t i,
+                                 const pb_variable<FieldT> &result, const std::string &annotation_prefix) : gadget<FieldT>(pb, annotation_prefix),
+                                                                                                            result(result),
+                                                                                                            i(i)
+    {
+        result_bits.allocate(pb, 32, FMT(this->annotation_prefix, " result_bits"));
+        if (i < 16)
+        {
+            parity.reset(new parity_gadget<FieldT>(pb, X, Y, Z, false, 0, 0, 0, result_bits, " gg_parity"));
+            pack_parity_result.reset(new packing_gadget<FieldT>(pb, result_bits, result, " gg_parity_packing"));
+        }
+        else
+        {
+            choice.reset(new choice_gadget<FieldT>(pb, X, Y, Z, result, "gg_choice"));
+        }
+    }
+
+    template <typename FieldT>
+    void gg_gadget<FieldT>::generate_r1cs_constraints()
+    {
+        if (i < 16)
+        {
+            parity->generate_r1cs_constraints();
+            pack_parity_result->generate_r1cs_constraints();
+        }
+        else
+        {
+            choice->generate_r1cs_constraints();
+        }
+    }
+
+    template <typename FieldT>
+    void ff_gadget<FieldT>::generate_r1cs_witness()
+    {
+        if (i < 16)
+        {
+            parity->generate_r1cs_witness();
+            pack_parity_result->generate_r1cs_witness();
+        }
+        else
+        {
+            choice->generate_r1cs_witness();
         }
     }
 
@@ -180,6 +278,8 @@ namespace libsnark
         pack_result->generate_r1cs_witness_from_bits();
     }
 
+#define SM3_GADGET_ROTL(A, i, k) A[((i) - (k)) % 32]
+
     template <typename FieldT>
     parity_gadget<FieldT>::parity_gadget(protoboard<FieldT> &pb,
                                          const pb_linear_combination_array<FieldT> &X,
@@ -266,7 +366,7 @@ namespace libsnark
     pb_variable_array<FieldT> rotate_left(const pb_variable_array<FieldT> &pre, size_t rot, protoboard<FieldT> &pb, const std::string &annotation = "")
     {
         pb_variable_array<FieldT> after;
-        //        after.allocate(pb, 32, annotation);
+        after.resize(32);
         for (size_t i = 0; i < 32; i++)
         {
             after[i] = SM3_GADGET_ROTL(pre, i, rot);
