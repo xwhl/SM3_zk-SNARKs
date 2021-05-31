@@ -263,21 +263,25 @@ namespace libsnark
         pack_e->generate_r1cs_witness_from_bits();
         pack_d->generate_r1cs_witness_from_bits();
         pack_h->generate_r1cs_witness_from_bits();
+        pack_a_rotl->generate_r1cs_witness_from_bits();
 
-        compute_sigma0->generate_r1cs_witness();
-        compute_sigma1->generate_r1cs_witness();
+        this->pb.val(ss1_unreduced) = this->pb.val(a_rotl_packed) + this->pb.val(packed_e) + FieldT(T);
+        mod_reduce_ss1->generate_r1cs_witness();
 
-        compute_choice->generate_r1cs_witness();
-        compute_majority->generate_r1cs_witness();
+        compute_ss2->generate_r1cs_witness();
+        pack_ss2->generate_r1cs_witness_from_bits();
 
-        pack_d->generate_r1cs_witness_from_bits();
-        pack_h->generate_r1cs_witness_from_bits();
+        compute_ff->generate_r1cs_witness();
 
-        this->pb.val(unreduced_new_a) = this->pb.val(packed_h) + this->pb.val(sigma1) + this->pb.val(choice) + FieldT(K) + this->pb.val(W) + this->pb.val(sigma0) + this->pb.val(majority);
-        this->pb.val(unreduced_new_e) = this->pb.val(packed_d) + this->pb.val(packed_h) + this->pb.val(sigma1) + this->pb.val(choice) + FieldT(K) + this->pb.val(W);
-
+        this->pb.val(unreduced_new_a) = this->pb.val(ff) + this->pb.val(packed_d) + this->pb.val(ss2_packed) + this->pb.val(W_extended);
         mod_reduce_new_a->generate_r1cs_witness();
-        mod_reduce_new_e->generate_r1cs_witness();
+
+        compute_gg->generate_r1cs_witness();
+
+        this->pb.val(tt2_unreduced) = this->pb.val(gg) + this->pb.val(packed_h) + this->pb.val(ss1_packed) + this->pb.val(W);
+        mod_reduce_tt2->generate_r1cs_witness();
+
+        compute_new_e->generate_r1cs_witness();
     }
 } // libsnark
 
