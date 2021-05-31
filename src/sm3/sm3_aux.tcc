@@ -120,7 +120,7 @@ namespace libsnark
         if (i < 16)
         {
             parity->generate_r1cs_constraints();
-            pack_parity_result->generate_r1cs_constraints();
+            pack_parity_result->generate_r1cs_constraints(false);
         }
         else
         {
@@ -134,7 +134,7 @@ namespace libsnark
         if (i < 16)
         {
             parity->generate_r1cs_witness();
-            pack_parity_result->generate_r1cs_witness();
+            pack_parity_result->generate_r1cs_witness_from_bits();
         }
         else
         {
@@ -170,7 +170,7 @@ namespace libsnark
         if (i < 16)
         {
             parity->generate_r1cs_constraints();
-            pack_parity_result->generate_r1cs_constraints();
+            pack_parity_result->generate_r1cs_constraints(false);
         }
         else
         {
@@ -184,7 +184,7 @@ namespace libsnark
         if (i < 16)
         {
             parity->generate_r1cs_witness();
-            pack_parity_result->generate_r1cs_witness();
+            pack_parity_result->generate_r1cs_witness_from_bits();
         }
         else
         {
@@ -363,7 +363,7 @@ namespace libsnark
     }
 
     template <typename FieldT>
-    pb_variable_array<FieldT> rotate_left(const pb_variable_array<FieldT> &pre, size_t rot, protoboard<FieldT> &pb, const std::string &annotation = "")
+    pb_variable_array<FieldT> rotate_left(const pb_variable_array<FieldT> &pre, size_t rot)
     {
         pb_variable_array<FieldT> after;
         after.resize(32);

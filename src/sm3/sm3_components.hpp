@@ -54,24 +54,45 @@ namespace libsnark
     class sm3_round_function_gadget : public gadget<FieldT>
     {
     public:
-        pb_variable<FieldT> sigma0;
-        pb_variable<FieldT> sigma1;
-        std::shared_ptr<big_sigma_gadget<FieldT>> compute_sigma0;
-        std::shared_ptr<big_sigma_gadget<FieldT>> compute_sigma1;
-        pb_variable<FieldT> choice;
-        pb_variable<FieldT> majority;
-        std::shared_ptr<choice_gadget<FieldT>> compute_choice;
-        std::shared_ptr<majority_gadget<FieldT>> compute_majority;
+        pb_variable<FieldT> packed_e;
+        std::shared_ptr<packing_gadget<FieldT>> pack_e;
         pb_variable<FieldT> packed_d;
         std::shared_ptr<packing_gadget<FieldT>> pack_d;
         pb_variable<FieldT> packed_h;
         std::shared_ptr<packing_gadget<FieldT>> pack_h;
+
+        pb_variable<FieldT> a_rotl_packed;
+        pb_variable_array<FieldT> a_rotl_bits;
+        std::shared_ptr<packing_gadget<FieldT>> pack_a_rotl;
+
+        pb_variable<FieldT> ss1_unreduced;
+        pb_variable<FieldT> ss1_packed;
+        pb_variable_array<FieldT> ss1_bits;
+        std::shared_ptr<lastbits_gadget<FieldT>> mod_reduce_ss1;
+        pb_variable_array<FieldT> ss1_rotl_bits;
+        pb_variable<FieldT> ss1_rotl_packed;
+
+        pb_variable<FieldT> ss2_packed;
+        pb_variable_array<FieldT> ss2_bits;
+        std::shared_ptr<parity_gadget<FieldT>> compute_ss2;
+        std::shared_ptr<packing_gadget<FieldT>> pack_ss2;
+
+        pb_variable<FieldT> ff;
+        std::shared_ptr<ff_gadget<FieldT>> compute_ff;
+
         pb_variable<FieldT> unreduced_new_a;
-        pb_variable<FieldT> unreduced_new_e;
         std::shared_ptr<lastbits_gadget<FieldT>> mod_reduce_new_a;
-        std::shared_ptr<lastbits_gadget<FieldT>> mod_reduce_new_e;
         pb_variable<FieldT> packed_new_a;
-        pb_variable<FieldT> packed_new_e;
+
+        pb_variable<FieldT> gg;
+        std::shared_ptr<ff_gadget<FieldT>> compute_gg;
+
+        pb_variable<FieldT> tt2_unreduced;
+        pb_variable<FieldT> tt2_packed;
+        pb_variable_array<FieldT> tt2_bits;
+        std::shared_ptr<lastbits_gadget<FieldT>> mod_reduce_tt2;
+
+        std::shared_ptr<permutation_gadget<FieldT>> compute_new_e;
 
     public:
         pb_linear_combination_array<FieldT> a;
@@ -85,6 +106,7 @@ namespace libsnark
         pb_variable<FieldT> W;
         pb_variable<FieldT> W_extended;
         size_t i;
+        unsigned long T;
         pb_linear_combination_array<FieldT> new_a;
         pb_linear_combination_array<FieldT> new_e;
 
@@ -99,6 +121,7 @@ namespace libsnark
                                   const pb_linear_combination_array<FieldT> &h,
                                   const pb_variable<FieldT> &W,
                                   const pb_variable<FieldT> &W_extended,
+                                  const unsigned long T,
                                   const pb_linear_combination_array<FieldT> &new_a,
                                   const pb_linear_combination_array<FieldT> &new_e,
                                   const size_t i,

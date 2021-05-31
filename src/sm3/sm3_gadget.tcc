@@ -31,18 +31,8 @@ namespace libsnark
         /* do the rounds */
         for (size_t i = 0; i < 64; ++i)
         {
-            pb_variable_array<FieldT> new_round_c_variables;
-            new_round_c_variables.allocate(pb, 32, FMT(this->annotation_prefix, " new_round_c_variables_%zu", i + 1));
-
-            pb_variable_array<FieldT> new_round_g_variables;
-            new_round_g_variables.allocate(pb, 32, FMT(this->annotation_prefix, " new_round_g_variables_%zu", i + 1));
-
-            //这里直接赋pb_variable应该没错
-            for (size_t i = 0; i < 32; i++)
-            {
-                new_round_c_variables[i] = SM3_GADGET_ROTL(round_b, i, 9);
-                new_round_g_variables[i] = SM3_GADGET_ROTL(round_f, i, 19);
-            }
+            pb_variable_array<FieldT> new_round_c_variables = rotate_left(round_b[i], 9);
+            pb_variable_array<FieldT> new_round_g_variables = rotate_left(round_f[i], 19);
 
             round_d.push_back(round_c[i]);
             round_c.emplace_back(new_round_c_variables);
@@ -62,7 +52,7 @@ namespace libsnark
             round_functions.push_back(sm3_round_function_gadget<FieldT>(pb,
                                                                         round_a[i], round_b[i], round_c[i], round_d[i],
                                                                         round_e[i], round_f[i], round_g[i], round_h[i],
-                                                                        packed_W[i], packed_W_extended[i], round_a[i + 1], round_e[i + 1], i,
+                                                                        packed_W[i], packed_W_extended[i], sm3_T[i], round_a[i + 1], round_e[i + 1], i,
                                                                         FMT(this->annotation_prefix, " round_functions_%zu", i)));
         }
 

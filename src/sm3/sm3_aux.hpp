@@ -211,7 +211,7 @@ namespace libsnark
 
     // X <<< rot
     template <typename FieldT>
-    pb_variable_array<FieldT> rotate_left(const pb_variable_array<FieldT> &pre, const std::string &annotation = "");
+    pb_variable_array<FieldT> rotate_left(const pb_variable_array<FieldT> &pre, size_t rot);
 
 } // libsnark
 

@@ -98,7 +98,7 @@ namespace libsnark
     {
         for (size_t i = 0; i < 16; ++i)
         {
-            pack_W[i]->generate_r1cs_constraints(false); // do not enforce bitness here; caller be aware. //可以减少constraint数
+            pack_W[i]->generate_r1cs_constraints(false); // do not enforce bitness here; caller be aware.
         }
 
         for (size_t i = 16; i < 68; ++i)
@@ -106,13 +106,13 @@ namespace libsnark
             compute_p1_input[i]->generate_r1cs_constraints();
             compute_p1[i]->generate_r1cs_constraints();
             compute_W[i]->generate_r1cs_comstraints();
-            pack_W[i]->generate_r1cs_constraints();
+            pack_W[i]->generate_r1cs_constraints(false);
         }
 
         for (size_t i = 0; i < 64; i++)
         {
             compute_W_extended[i]->generate_r1cs_constraints();
-            pack_W_extended[i]->generate_r1cs_constraints();
+            pack_W_extended[i]->generate_r1cs_constraints(false);
         }
     }
 
@@ -135,7 +135,7 @@ namespace libsnark
         for (size_t i = 0; i < 64; i++)
         {
             compute_W_extended[i]->generate_r1cs_witness();
-            pack_W_extended[i]->generate_r1cs_witness();
+            pack_W_extended[i]->generate_r1cs_witness_from_bits();
         }
     }
 
@@ -151,6 +151,7 @@ namespace libsnark
                                                                  const pb_linear_combination_array<FieldT> &h,
                                                                  const pb_variable<FieldT> &W,
                                                                  const pb_variable<FieldT> &W_extended,
+                                                                 const unsigned long T,
                                                                  const pb_linear_combination_array<FieldT> &new_a,
                                                                  const pb_linear_combination_array<FieldT> &new_e,
                                                                  const size_t i,
@@ -167,70 +168,102 @@ namespace libsnark
                                                                                                          W_extended(W_extended),
                                                                                                          new_a(new_a),
                                                                                                          new_e(new_e),
-                                                                                                         i(i)
+                                                                                                         i(i),
+                                                                                                         T(T)
     {
-        /* compute sigma0 and sigma1 */
-        sigma0.allocate(pb, FMT(this->annotation_prefix, " sigma0"));
-        sigma1.allocate(pb, FMT(this->annotation_prefix, " sigma1"));
-        compute_sigma0.reset(new big_sigma_gadget<FieldT>(pb, a, sigma0, 2, 13, 22, FMT(this->annotation_prefix, " compute_sigma0")));
-        compute_sigma1.reset(new big_sigma_gadget<FieldT>(pb, e, sigma1, 6, 11, 25, FMT(this->annotation_prefix, " compute_sigma1")));
+        // pack E, D, H
+        e_packed.allocate(pb, FMT(this->annotation_prefix, " e_packed"));
+        d_packed.allocate(pb, FMT(this->annotation_prefix, " d_packed"));
+        h_packed.allocate(pb, FMT(this->annotation_prefix, " h_packed"));
+        pack_e.reset(new packing_gadget<FieldT>(pb, e, e_packed, FMT(this->annotation_prefix, " pack_e")));
+        pack_d.reset(new packing_gadget<FieldT>(pb, d, d_packed, FMT(this->annotation_prefix, " pack_d")));
+        pack_h.reset(new packing_gadget<FieldT>(pb, h, h_packed, FMT(this->annotation_prefix, " pack_h")));
 
-        /* compute choice */
-        choice.allocate(pb, FMT(this->annotation_prefix, " choice"));
-        compute_choice.reset(new choice_gadget<FieldT>(pb, e, f, g, choice, FMT(this->annotation_prefix, " compute_choice")));
+        // A<<<12
+        a_rotl_bits = rotate_left(a, 12);
+        a_rotl_packed.allocate(pb, FMT(this->annotation_prefix, " a_rotl_packed"));
+        pack_a_rotl.reset(new packing_gadget<FieldT>(pb, a_rotl_bits, a_rotl_packed, FMT(this->annotation_prefix, " pack_a_rotl")));
 
-        /* compute majority */
-        majority.allocate(pb, FMT(this->annotation_prefix, " majority"));
-        compute_majority.reset(new majority_gadget<FieldT>(pb, a, b, c, majority, FMT(this->annotation_prefix, " compute_majority")));
+        // compute ss1
+        ss1_unreduced.allocate(pb, FMT(this->annotation_prefix, " ss1_unreduced"));
+        ss1_packed.allocate(pb, FMT(this->annotation_prefix, " ss1_packed"));
+        ss1_bits.allocate(pb, 32, FMT(this->annotation_prefix, " ss1_bits"));
+        mod_reduce_ss1.reset(new lastbits_gadget<FieldT>(pb, ss1_unreduced, 32 + 1, ss1_packed, ss1_bits, FMT(this->annotation_prefix, " mod_reduce_new_a")));
+        ss1_rotl_bits = rotate_left(ss1_bits, 7);
+        ss1_rotl_packed.allocate(pb, FMT(this->annotation_prefix, " ss1_rotl_packed"));
 
-        /* pack d */
-        packed_d.allocate(pb, FMT(this->annotation_prefix, " packed_d"));
-        pack_d.reset(new packing_gadget<FieldT>(pb, d, packed_d, FMT(this->annotation_prefix, " pack_d")));
+        // compute ss2
+        ss2_bits.allocate(pb, 32, FMT(this->annotation_prefix, " ss2_bits"));
+        compute_ss2.reset(new parity_gadget<FieldT>(pb, ss1_rotl_bits, a_rotl_bits, ONE, true, 0, 0, 0, ss2_bits, " compute_ss2"));
+        ss2_packed.allocate(pb, FMT(this->annotation_prefix, " ss2_packed"));
+        pack_ss2.reset(new packing_gadget<FieldT>(pb, ss2_bits, ss2_packed, FMT(this->annotation_prefix, " pack_ss2")));
 
-        /* pack h */
-        packed_h.allocate(pb, FMT(this->annotation_prefix, " packed_h"));
-        pack_h.reset(new packing_gadget<FieldT>(pb, h, packed_h, FMT(this->annotation_prefix, " pack_h")));
+        // compute ff
+        ff.allocate(pb, FMT(this->annotation_prefix, " ff"));
+        compute_ff.reset(new ff_gadget<FieldT>(pb, a, b, c, i, ff, " compute_ff"));
 
-        /* compute the actual results for the round */
+        // compute new_a(tt1)
         unreduced_new_a.allocate(pb, FMT(this->annotation_prefix, " unreduced_new_a"));
-        unreduced_new_e.allocate(pb, FMT(this->annotation_prefix, " unreduced_new_e"));
-
         packed_new_a.allocate(pb, FMT(this->annotation_prefix, " packed_new_a"));
-        packed_new_e.allocate(pb, FMT(this->annotation_prefix, " packed_new_e"));
+        mod_reduce_new_a.reset(new lastbits_gadget<FieldT>(pb, unreduced_new_a, 32 + 2, packed_new_a, new_a, FMT(this->annotation_prefix, " mod_reduce_new_a")));
 
-        mod_reduce_new_a.reset(new lastbits_gadget<FieldT>(pb, unreduced_new_a, 32 + 3, packed_new_a, new_a, FMT(this->annotation_prefix, " mod_reduce_new_a")));
-        mod_reduce_new_e.reset(new lastbits_gadget<FieldT>(pb, unreduced_new_e, 32 + 3, packed_new_e, new_e, FMT(this->annotation_prefix, " mod_reduce_new_e")));
+        // compute gg
+        gg.allocate(pb, FMT(this->annotation_prefix, " gg"));
+        compute_gg.reset(new gg_gadget<FieldT>(pb, e, f, g, i, gg, " compute_gg"));
+
+        // compute tt2
+        tt2_unreduced.allocate(pb, FMT(this->annotation_prefix, " tt2_unreduced"));
+        tt2_packed.allocate(pb, FMT(this->annotation_prefix, " tt2_packed"));
+        tt2_bits.allocate(pb, 32, FMT(this->annotation_prefix, " tt2_bits"));
+        mod_reduce_tt2.reset(new lastbits_gadget<FieldT>(pb, tt2_unreduced, 32 + 2, tt2_packed, tt2_bits, FMT(this->annotation_prefix, " mod_reduce_tt2")));
+
+        //compute new_e
+        compute_new_e.reset(new permutation_gadget<FieldT>(pb, tt2_bits, new_e, 0, 9, 17, " compute_new_e"));
     }
 
     template <typename FieldT>
     void sm3_round_function_gadget<FieldT>::generate_r1cs_constraints()
     {
-        compute_sigma0->generate_r1cs_constraints();
-        compute_sigma1->generate_r1cs_constraints();
-
-        compute_choice->generate_r1cs_constraints();
-        compute_majority->generate_r1cs_constraints();
-
+        pack_e->generate_r1cs_constraints(false);
         pack_d->generate_r1cs_constraints(false);
         pack_h->generate_r1cs_constraints(false);
+        pack_a_rotl->generate_r1cs_constraints(false);
 
         this->pb.add_r1cs_constraint(r1cs_constraint<FieldT>(1,
-                                                             packed_h + sigma1 + choice + K + W + sigma0 + majority,
+                                                             a_rotl_packed + packed_e + T,
+                                                             ss1_unreduced),
+                                     FMT(this->annotation_prefix, " ss1_unreduced"));
+        mod_reduce_ss1->generate_r1cs_constraints();
+
+        compute_ss2->generate_r1cs_constraints();
+        pack_ss2->generate_r1cs_constraints(false);
+
+        compute_ff->generate_r1cs_constraints();
+
+        this->pb.add_r1cs_constraint(r1cs_constraint<FieldT>(1,
+                                                             ff + packed_d + ss2_packed + W_extended,
                                                              unreduced_new_a),
                                      FMT(this->annotation_prefix, " unreduced_new_a"));
+        mod_reduce_new_a->generate_r1cs_constraints();
+
+        compute_gg->generate_r1cs_constraints();
 
         this->pb.add_r1cs_constraint(r1cs_constraint<FieldT>(1,
-                                                             packed_d + packed_h + sigma1 + choice + K + W,
-                                                             unreduced_new_e),
-                                     FMT(this->annotation_prefix, " unreduced_new_e"));
+                                                             gg + packed_h + ss1_packed + W,
+                                                             tt2_unreduced),
+                                     FMT(this->annotation_prefix, " tt2_unreduced"));
+        mod_reduce_tt2->generate_r1cs_constraints();
 
-        mod_reduce_new_a->generate_r1cs_constraints();
-        mod_reduce_new_e->generate_r1cs_constraints();
+        compute_new_e->generate_r1cs_constraints();
     }
 
     template <typename FieldT>
     void sm3_round_function_gadget<FieldT>::generate_r1cs_witness()
     {
+        pack_e->generate_r1cs_witness_from_bits();
+        pack_d->generate_r1cs_witness_from_bits();
+        pack_h->generate_r1cs_witness_from_bits();
+
         compute_sigma0->generate_r1cs_witness();
         compute_sigma1->generate_r1cs_witness();
 
