@@ -27,9 +27,10 @@ namespace libsnark
         std::vector<pb_variable_array<FieldT>> p1;
 
         // compute W_16~67
-        std::vector<std::shared_ptr<permutation_gadget<FieldT>>> compute_W;
+        std::vector<std::shared_ptr<parity_gadget<FieldT>>> compute_W;
         // compute W'_0~63
-        std::vector<std::shared_ptr<permutation_gadget<FieldT>>> compute_W_extended;
+        std::vector<std::shared_ptr<parity_gadget<FieldT>>> compute_W_extended;
+
         std::vector<std::shared_ptr<parity_gadget<FieldT>>> compute_p1_input;
         std::vector<std::shared_ptr<permutation_gadget<FieldT>>> compute_p1;
 
@@ -62,15 +63,16 @@ namespace libsnark
         std::shared_ptr<packing_gadget<FieldT>> pack_h;
 
         pb_variable<FieldT> a_rotl_packed;
-        pb_variable_array<FieldT> a_rotl_bits;
+        pb_linear_combination_array<FieldT> a_rotl_bits;
         std::shared_ptr<packing_gadget<FieldT>> pack_a_rotl;
 
         pb_variable<FieldT> ss1_unreduced;
         pb_variable<FieldT> ss1_packed;
         pb_variable_array<FieldT> ss1_bits;
         std::shared_ptr<lastbits_gadget<FieldT>> mod_reduce_ss1;
-        pb_variable_array<FieldT> ss1_rotl_bits;
+        pb_linear_combination_array<FieldT> ss1_rotl_bits;
         pb_variable<FieldT> ss1_rotl_packed;
+        std::shared_ptr<packing_gadget<FieldT>> pack_ss1_rotl;
 
         pb_variable<FieldT> ss2_packed;
         pb_variable_array<FieldT> ss2_bits;
@@ -85,7 +87,7 @@ namespace libsnark
         pb_variable<FieldT> packed_new_a;
 
         pb_variable<FieldT> gg;
-        std::shared_ptr<ff_gadget<FieldT>> compute_gg;
+        std::shared_ptr<gg_gadget<FieldT>> compute_gg;
 
         pb_variable<FieldT> tt2_unreduced;
         pb_variable<FieldT> tt2_packed;
@@ -105,10 +107,10 @@ namespace libsnark
         pb_linear_combination_array<FieldT> h;
         pb_variable<FieldT> W;
         pb_variable<FieldT> W_extended;
-        size_t i;
-        unsigned long T;
         pb_linear_combination_array<FieldT> new_a;
         pb_linear_combination_array<FieldT> new_e;
+        size_t i;
+        unsigned long T;
 
         sm3_round_function_gadget(protoboard<FieldT> &pb,
                                   const pb_linear_combination_array<FieldT> &a,

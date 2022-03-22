@@ -26,9 +26,7 @@ namespace libsnark
         std::shared_ptr<sm3_message_schedule_gadget<FieldT>> message_schedule;
         std::vector<sm3_round_function_gadget<FieldT>> round_functions;
 
-        pb_variable_array<FieldT> unreduced_output;
-        pb_variable_array<FieldT> reduced_output;
-        std::vector<lastbits_gadget<FieldT>> reduce_output;
+        std::vector<parity_gadget<FieldT>> compute_output;
 
     public:
         pb_linear_combination_array<FieldT> prev_output;
@@ -64,14 +62,14 @@ namespace libsnark
                                    const digest_variable<FieldT> &output,
                                    const std::string &annotation_prefix);
 
-        void generate_r1cs_constraints(const bool ensure_output_bitness = true); // TODO: ignored for now
+        void generate_r1cs_constraints(const bool ensure_output_bitness = true);
         void generate_r1cs_witness();
 
         static size_t get_block_len();
         static size_t get_digest_len();
         static libff::bit_vector get_hash(const libff::bit_vector &input);
 
-        static size_t expected_constraints(const bool ensure_output_bitness = true); // TODO: ignored for now
+        static size_t expected_constraints(const bool ensure_output_bitness = true);
     };
 } // libsnark
 

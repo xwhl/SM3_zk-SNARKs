@@ -31,14 +31,16 @@ namespace libsnark
         /* do the rounds */
         for (size_t i = 0; i < 64; ++i)
         {
-            pb_variable_array<FieldT> new_round_c_variables = rotate_left(round_b[i], 9);
-            pb_variable_array<FieldT> new_round_g_variables = rotate_left(round_f[i], 19);
+            // pb_variable_array<FieldT> new_round_c_variables = rotate_left(new_block, 9);
+            // pb_variable_array<FieldT> new_round_g_variables = rotate_left(new_block, 9);
+            pb_linear_combination_array<FieldT> new_round_c_variables = rotate_left(round_b[i], 9);
+            pb_linear_combination_array<FieldT> new_round_g_variables = rotate_left(round_f[i], 19);
 
             round_d.push_back(round_c[i]);
-            round_c.emplace_back(new_round_c_variables);
+            round_c.push_back(new_round_c_variables);
             round_b.push_back(round_a[i]);
             round_h.push_back(round_g[i]);
-            round_g.emplace_back(new_round_g_variables);
+            round_g.push_back(new_round_g_variables);
             round_f.push_back(round_e[i]);
 
             pb_variable_array<FieldT> new_round_a_variables;
@@ -57,20 +59,32 @@ namespace libsnark
         }
 
         /* finalize */
-        unreduced_output.allocate(pb, 8, FMT(this->annotation_prefix, " unreduced_output"));
-        reduced_output.allocate(pb, 8, FMT(this->annotation_prefix, " reduced_output"));
-        for (size_t i = 0; i < 8; ++i)
-        {
-            //这里是32+几？
-            reduce_output.push_back(lastbits_gadget<FieldT>(pb,
-                                                            unreduced_output[i],
-                                                            32 + 1,
-                                                            reduced_output[i],
-                                                            pb_variable_array<FieldT>(output.bits.rbegin() + (7 - i) * 32, output.bits.rbegin() + (8 - i) * 32),
-                                                            FMT(this->annotation_prefix, " reduce_output_%zu", i)));
-        }
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_a[0], round_a[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (7) * 32, output.bits.rbegin() + (8) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 0)));
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_b[0], round_b[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (6) * 32, output.bits.rbegin() + (7) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 1)));
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_c[0], round_c[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (5) * 32, output.bits.rbegin() + (6) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 2)));
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_d[0], round_d[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (4) * 32, output.bits.rbegin() + (5) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 3)));
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_e[0], round_e[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (3) * 32, output.bits.rbegin() + (4) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 4)));
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_f[0], round_f[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (2) * 32, output.bits.rbegin() + (3) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 5)));
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_g[0], round_g[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (1) * 32, output.bits.rbegin() + (2) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 6)));
+        compute_output.push_back(parity_gadget<FieldT>(pb, round_h[0], round_h[64], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0,
+                                                       pb_variable_array<FieldT>(output.bits.rbegin() + (0) * 32, output.bits.rbegin() + (1) * 32),
+                                                       FMT(this->annotation_prefix, " compute_output_%zu", 7)));
     }
-
+    
     template <typename FieldT>
     void sm3_compression_function_gadget<FieldT>::generate_r1cs_constraints()
     {
@@ -80,18 +94,9 @@ namespace libsnark
             round_functions[i].generate_r1cs_constraints();
         }
 
-        //改为0~7,且round_functions只在0和63生成packed。
         for (size_t i = 0; i < 8; ++i)
         {
-            this->pb.add_r1cs_constraint(r1cs_constraint<FieldT>(1,
-                                                                 round_functions[0].packed[i] + round_functions[63].packed[i],
-                                                                 unreduced_output[i]),
-                                         FMT(this->annotation_prefix, " unreduced_output_%zu", i));
-        }
-
-        for (size_t i = 0; i < 8; ++i)
-        {
-            reduce_output[i].generate_r1cs_constraints();
+            compute_output[i].generate_r1cs_constraints();
         }
     }
 
@@ -100,39 +105,16 @@ namespace libsnark
     {
         message_schedule->generate_r1cs_witness();
 
-#ifdef DEBUG
-        printf("Input:\n");
-        for (size_t j = 0; j < 16; ++j)
-        {
-            printf("%lx ", this->pb.val(packed_W[j]).as_ulong());
-        }
-        printf("\n");
-#endif
-
         for (size_t i = 0; i < 64; ++i)
         {
             round_functions[i].generate_r1cs_witness();
         }
 
-        //同generate_constraint
         for (size_t i = 0; i < 8; ++i)
         {
-            this->pb.val(unreduced_output[i]) = this->pb.val(round_functions[0].packed[i]) + this->pb.val(round_functions[63].packed[i]);
+            compute_output[i].generate_r1cs_witness();
         }
 
-        for (size_t i = 0; i < 8; ++i)
-        {
-            reduce_output[i].generate_r1cs_witness();
-        }
-
-#ifdef DEBUG
-        printf("Output:\n");
-        for (size_t j = 0; j < 8; ++j)
-        {
-            printf("%lx ", this->pb.val(reduced_output[j]).as_ulong());
-        }
-        printf("\n");
-#endif
     }
 
     template <typename FieldT>

@@ -48,8 +48,8 @@ namespace libsnark
     {
         W_bits.resize(68);
         W_extended_bits.resize(64);
-
         pack_W.resize(68);
+        pack_W_extended.resize(64);
         for (size_t i = 0; i < 16; ++i)
         {
             W_bits[i] = pb_variable_array<FieldT>(M.rbegin() + (15 - i) * 32, M.rbegin() + (16 - i) * 32);
@@ -59,7 +59,7 @@ namespace libsnark
         /* NB: some of those will be un-allocated */
         p1_input.resize(68);
         p1.resize(68);
-        compute_p1_input(68);
+        compute_p1_input.resize(68);
         compute_p1.resize(68);
         compute_W.resize(68);
         compute_W_extended.resize(64);
@@ -86,10 +86,9 @@ namespace libsnark
         {
             /* allocate the bit representation of packed_W_extended[i] */
             W_extended_bits[i].allocate(pb, 32, FMT(this->annotation_prefix, " W_extended_bits_%zu", i));
-
             /* compute W_extended_bits and pack */
-            compute_W_extended[i].reset(new parity_gadget<FieldT>(pb, W_bits[i], W_bits[i + 4], ONE, true, 0, 0, 0, W_extended_bits[i], FMT(this->annotation_prefix, " compute_W_entended_bits_%zu", i)));
-            packed_W_extended[i].reset(new packing_gadget<FieldT>(pb, W_extended_bits[i], packed_W_extended[i], FMT(this->annotation_prefix, " pack_W_extended_%zu", i)));
+            compute_W_extended[i].reset(new parity_gadget<FieldT>(pb, W_bits[i], W_bits[i + 4], pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0, W_extended_bits[i], FMT(this->annotation_prefix, " compute_W_entended_bits_%zu", i)));
+            pack_W_extended[i].reset(new packing_gadget<FieldT>(pb, W_extended_bits[i], packed_W_extended[i], FMT(this->annotation_prefix, " pack_W_extended_%zu", i)));
         }
     }
 
@@ -105,7 +104,7 @@ namespace libsnark
         {
             compute_p1_input[i]->generate_r1cs_constraints();
             compute_p1[i]->generate_r1cs_constraints();
-            compute_W[i]->generate_r1cs_comstraints();
+            compute_W[i]->generate_r1cs_constraints();
             pack_W[i]->generate_r1cs_constraints(false);
         }
 
@@ -172,12 +171,12 @@ namespace libsnark
                                                                                                          T(T)
     {
         // pack E, D, H
-        e_packed.allocate(pb, FMT(this->annotation_prefix, " e_packed"));
-        d_packed.allocate(pb, FMT(this->annotation_prefix, " d_packed"));
-        h_packed.allocate(pb, FMT(this->annotation_prefix, " h_packed"));
-        pack_e.reset(new packing_gadget<FieldT>(pb, e, e_packed, FMT(this->annotation_prefix, " pack_e")));
-        pack_d.reset(new packing_gadget<FieldT>(pb, d, d_packed, FMT(this->annotation_prefix, " pack_d")));
-        pack_h.reset(new packing_gadget<FieldT>(pb, h, h_packed, FMT(this->annotation_prefix, " pack_h")));
+        packed_e.allocate(pb, FMT(this->annotation_prefix, " packed_e"));
+        packed_d.allocate(pb, FMT(this->annotation_prefix, " packed_d"));
+        packed_h.allocate(pb, FMT(this->annotation_prefix, " packed_h"));
+        pack_e.reset(new packing_gadget<FieldT>(pb, e, packed_e, FMT(this->annotation_prefix, " pack_e")));
+        pack_d.reset(new packing_gadget<FieldT>(pb, d, packed_d, FMT(this->annotation_prefix, " pack_d")));
+        pack_h.reset(new packing_gadget<FieldT>(pb, h, packed_h, FMT(this->annotation_prefix, " pack_h")));
 
         // A<<<12
         a_rotl_bits = rotate_left(a, 12);
@@ -188,13 +187,14 @@ namespace libsnark
         ss1_unreduced.allocate(pb, FMT(this->annotation_prefix, " ss1_unreduced"));
         ss1_packed.allocate(pb, FMT(this->annotation_prefix, " ss1_packed"));
         ss1_bits.allocate(pb, 32, FMT(this->annotation_prefix, " ss1_bits"));
-        mod_reduce_ss1.reset(new lastbits_gadget<FieldT>(pb, ss1_unreduced, 32 + 1, ss1_packed, ss1_bits, FMT(this->annotation_prefix, " mod_reduce_new_a")));
-        ss1_rotl_bits = rotate_left(ss1_bits, 7);
+        mod_reduce_ss1.reset(new lastbits_gadget<FieldT>(pb, ss1_unreduced, 32 + 2, ss1_packed, ss1_bits, FMT(this->annotation_prefix, " mod_reduce_new_a")));
+        ss1_rotl_bits = rotate_left(pb_linear_combination_array<FieldT>(ss1_bits), 7);
         ss1_rotl_packed.allocate(pb, FMT(this->annotation_prefix, " ss1_rotl_packed"));
+        pack_ss1_rotl.reset(new packing_gadget<FieldT>(pb, ss1_rotl_bits, ss1_rotl_packed, FMT(this->annotation_prefix, " pack_ss1_rotl")));
 
         // compute ss2
         ss2_bits.allocate(pb, 32, FMT(this->annotation_prefix, " ss2_bits"));
-        compute_ss2.reset(new parity_gadget<FieldT>(pb, ss1_rotl_bits, a_rotl_bits, ONE, true, 0, 0, 0, ss2_bits, " compute_ss2"));
+        compute_ss2.reset(new parity_gadget<FieldT>(pb, ss1_rotl_bits, a_rotl_bits, pb_variable_array<FieldT>(32, ONE), true, 0, 0, 0, ss2_bits, " compute_ss2"));
         ss2_packed.allocate(pb, FMT(this->annotation_prefix, " ss2_packed"));
         pack_ss2.reset(new packing_gadget<FieldT>(pb, ss2_bits, ss2_packed, FMT(this->annotation_prefix, " pack_ss2")));
 
@@ -234,6 +234,7 @@ namespace libsnark
                                                              ss1_unreduced),
                                      FMT(this->annotation_prefix, " ss1_unreduced"));
         mod_reduce_ss1->generate_r1cs_constraints();
+        pack_ss1_rotl->generate_r1cs_constraints(false);
 
         compute_ss2->generate_r1cs_constraints();
         pack_ss2->generate_r1cs_constraints(false);
@@ -249,7 +250,7 @@ namespace libsnark
         compute_gg->generate_r1cs_constraints();
 
         this->pb.add_r1cs_constraint(r1cs_constraint<FieldT>(1,
-                                                             gg + packed_h + ss1_packed + W,
+                                                             gg + packed_h + ss1_rotl_packed + W,
                                                              tt2_unreduced),
                                      FMT(this->annotation_prefix, " tt2_unreduced"));
         mod_reduce_tt2->generate_r1cs_constraints();
@@ -267,6 +268,7 @@ namespace libsnark
 
         this->pb.val(ss1_unreduced) = this->pb.val(a_rotl_packed) + this->pb.val(packed_e) + FieldT(T);
         mod_reduce_ss1->generate_r1cs_witness();
+        pack_ss1_rotl->generate_r1cs_witness_from_bits();
 
         compute_ss2->generate_r1cs_witness();
         pack_ss2->generate_r1cs_witness_from_bits();
@@ -278,7 +280,7 @@ namespace libsnark
 
         compute_gg->generate_r1cs_witness();
 
-        this->pb.val(tt2_unreduced) = this->pb.val(gg) + this->pb.val(packed_h) + this->pb.val(ss1_packed) + this->pb.val(W);
+        this->pb.val(tt2_unreduced) = this->pb.val(gg) + this->pb.val(packed_h) + this->pb.val(ss1_rotl_packed) + this->pb.val(W);
         mod_reduce_tt2->generate_r1cs_witness();
 
         compute_new_e->generate_r1cs_witness();
